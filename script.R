@@ -201,9 +201,6 @@ dta <- dta %>%
   )
 
 
-census_2001_health %>% 
-  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
-  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "merge"))
 
 
 
@@ -220,6 +217,178 @@ View(census_2001_health)
 
 names(census_2001_health)[1:3] <- c("place", "sex", "age_and_health")
 
+# Now to gather the data 
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health)
+
+# And now to split the age_and_health column using the '-' symbol
+
+# First attempt
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-")
+
+# Attempt with extra argument set to drop
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop")
+
+# Attempt with extra argument set to 'merge' 
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "merge")
+
+# Same as drop, using 'drop' for now
+
+# Filtering rows where there is no data in the health column
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health))
 
 
+# Filtering out ALL PEOPLE from sex by filtering out ALL PEOPLE
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex != "ALL PEOPLE")
 
+# Filtering out ALL PEOPLE from sex by filtering in Male and Female
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female"))
+
+
+# Filter ALL PEOPLE from occupational_group
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE")
+
+# Filter in larger places only from census table
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) 
+
+# Filter to remove SCOTLAND as double counting
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND")
+
+
+# trim leading and trailing whitespace, for just two columns
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate(
+    age = str_trim(age), 
+    health = str_trim(health)
+  )
+
+# trim leading and trailing whitespace for all columns, using mutate
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate(
+    place = str_trim(place),
+    sex = str_trim(place),
+    age = str_trim(age),
+    health = str_trim(health),
+    occupational_group = str_trim(occupational_group),
+    count = str_trim(count)
+  )
+
+# Trim leading and trailing whitespace for all columns, using mutate_each
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim))
+
+# Trim leading and trailing whitespace for all columns, using mutate_each, excluding count
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim), -count)
+
+# Glimpse the data to reveal that count is still of type char
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim), -count) %>% glimpse
+
+# Create a function to turn '-' into '0' the convert to numeric
+
+zero_and_numeric <- function(input){
+  output <- input %>% 
+    str_replace("-", "0") %>% 
+    as.numeric
+  return(output)
+}
+
+census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim), -count) %>%
+  mutate(count = zero_and_numeric(count))
+
+
+tidy_census_2001_health <- census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim), -count) %>%
+  mutate(count = zero_and_numeric(count))
