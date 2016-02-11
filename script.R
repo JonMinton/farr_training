@@ -1,6 +1,4 @@
-# Script - looking at data from Caroline 
 
-# need to use haven
 rm(list = ls())
 
 
@@ -361,14 +359,7 @@ census_2001_health %>%
   filter(place != "SCOTLAND") %>% 
   mutate_each(funs(str_trim), -count) %>% glimpse
 
-# Create a function to turn '-' into '0' the convert to numeric
 
-zero_and_numeric <- function(input){
-  output <- input %>% 
-    str_replace("-", "0") %>% 
-    as.numeric
-  return(output)
-}
 
 census_2001_health %>% 
   gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
@@ -379,9 +370,10 @@ census_2001_health %>%
   filter(place == toupper(place)) %>% 
   filter(place != "SCOTLAND") %>% 
   mutate_each(funs(str_trim), -count) %>%
-  mutate(count = zero_and_numeric(count))
+  mutate(count = change_dash_to_zero(count))
 
 
+# Final solution to producing tidy data version of the census table
 tidy_census_2001_health <- census_2001_health %>% 
   gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
   separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
@@ -391,4 +383,189 @@ tidy_census_2001_health <- census_2001_health %>%
   filter(place == toupper(place)) %>% 
   filter(place != "SCOTLAND") %>% 
   mutate_each(funs(str_trim), -count) %>%
-  mutate(count = zero_and_numeric(count))
+  mutate(count = change_dash_to_zero(count))
+
+
+
+# Exploring the Tidy Data -------------------------------------------------
+
+# Question 1: Did males or females in Scotland have better self-reported health in 2001?
+
+tidy_census_2001_health %>%
+  mutate(
+    good_health = recode(
+      health, recodes = "
+      c('Good Health', 'Fairly Good Health') = 'yes';
+      'Not Good Health' = 'no'
+      "
+    )
+  ) %>% 
+  group_by(good_health, sex) %>% 
+  summarise(count = sum(count)) %>% 
+  spread(good_health, count) %>% 
+  mutate(
+    ratio = yes / no,
+    proportion = yes / (yes + no)
+    )
+
+
+# Question 2: Which places have the highest and lowest proportion 
+# of males aged between 50 to 64 who report poor health?
+
+# Ascending order 
+tidy_census_2001_health %>%
+  filter(age %in% c("50 to 54", "55 to 59", "60 to 64")) %>% 
+  filter(sex == "Male") %>% 
+  mutate(
+    good_health = recode(
+      health, recodes = "
+      c('Good Health', 'Fairly Good Health') = 'yes';
+      'Not Good Health' = 'no'
+      "
+    )
+    ) %>% 
+  select(place, age, good_health, count) %>% 
+  group_by(place, good_health) %>% 
+  summarise(count = sum(count)) %>% 
+  spread(good_health, count) %>% 
+  transmute(place = place, proportion = no / (no + yes)) %>% 
+  arrange(proportion)
+
+# Descending order 
+tidy_census_2001_health %>%
+  filter(age %in% c("50 to 54", "55 to 59", "60 to 64")) %>% 
+  filter(sex == "Male") %>% 
+  mutate(
+    good_health = recode(
+      health, recodes = "
+      c('Good Health', 'Fairly Good Health') = 'yes';
+      'Not Good Health' = 'no'
+      "
+    )
+  ) %>% 
+  select(place, age, good_health, count) %>% 
+  group_by(place, good_health) %>% 
+  summarise(count = sum(count)) %>% 
+  spread(good_health, count) %>% 
+  transmute(place = place, proportion = no / (no + yes)) %>% 
+  arrange(desc(proportion))
+
+
+
+# Visualisation
+tidy_census_2001_health %>%
+  filter(age %in% c("50 to 54", "55 to 59", "60 to 64")) %>% 
+  filter(sex == "Male") %>% 
+  mutate(
+    good_health = recode(
+      health, recodes = "
+      c('Good Health', 'Fairly Good Health') = 'yes';
+      'Not Good Health' = 'no'
+      "
+    )
+    ) %>% 
+  select(place, age, good_health, count) %>% 
+  group_by(place, good_health) %>% 
+  summarise(count = sum(count)) %>% 
+  spread(good_health, count) %>% 
+  transmute(place = place, proportion = no / (no + yes)) %>% 
+  arrange(desc(proportion)) %>% 
+  ggplot(.) + 
+  geom_point(aes(y = reorder(place, proportion), x = proportion)) + 
+  labs(x = "Proportion of older working age males reporting poor health", y = "Places within Scotland") + 
+  coord_cartesian(xlim = c(0, 0.40))
+
+
+# Examples of using cumsum
+
+tidy_census_2001_health %>% 
+  group_by(place) %>% 
+  summarise(count = sum(count)) %>% 
+  arrange(desc(count)) %>% 
+  mutate(
+    cumulative_count = cumsum(count),
+    cumulative_proportion = cumulative_count / sum(count)
+    ) 
+
+
+
+# Example of cumsum combined with group_by
+
+tidy_census_2001_health %>% 
+  group_by(place, sex) %>% 
+  summarise(count = sum(count)) %>%
+  group_by(sex) %>% 
+  arrange(desc(count)) %>% 
+  mutate(
+    cumulative_count = cumsum(count),
+    cumulative_proportion = cumulative_count / sum(count)
+  ) 
+
+# rearranging above to compare male and female by cumulative size
+
+tidy_census_2001_health %>% 
+  group_by(place, sex) %>% 
+  summarise(count = sum(count)) %>%
+  group_by(sex) %>% 
+  arrange(desc(count)) %>% 
+  mutate(
+    cumulative_count = cumsum(count),
+    cumulative_proportion = cumulative_count / sum(count)
+  ) %>% 
+  select(place, sex, cumulative_proportion) %>% 
+  spread(key = sex, value = cumulative_proportion) %>% 
+  mutate(
+    rank_female = dense_rank(Female),
+    rank_male = dense_rank(Male)
+  ) %>% 
+  arrange(rank_female) %>% 
+  mutate(dif_ranks = rank_male - rank_female) %>% 
+  View
+
+
+# Example of anti-join to find small places in Scotland
+
+
+tidy_census_2001_health_BIG <- census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  filter(place == toupper(place)) %>% 
+  filter(place != "SCOTLAND") %>% 
+  mutate_each(funs(str_trim), -count) %>%
+  mutate(count = change_dash_to_zero(count))
+
+tidy_census_2001_health_all <- census_2001_health %>% 
+  gather("occupational_group", "count", -place, -sex, -age_and_health) %>% 
+  separate(age_and_health, into = c("age", "health"), sep = "-", extra = "drop") %>% 
+  filter(!is.na(health)) %>% 
+  filter(sex %in% c("Male", "Female")) %>% 
+  filter(occupational_group != "ALL PEOPLE") %>% 
+  mutate_each(funs(str_trim), -count) %>%
+  mutate(count = change_dash_to_zero(count))
+
+
+tidy_census_2001_health_small <- tidy_census_2001_health_all %>% 
+  anti_join(tidy_census_2001_health_BIG) %>% 
+  filter(place != "SCOTLAND")
+
+
+tidy_census_2001_health <- tidy_census_2001_health %>% 
+  mutate(year = 2001) %>% 
+  select(place, year, sex, age, health, occupational_group, count)
+
+tidy_census_1991_health <- tidy_census_1991_health %>% 
+  mutate(year = 1991) %>% 
+  select(place, year, sex, age, health, occupational_group, count)
+
+tidy_census_2011_health <- tidy_census_2011_health %>% 
+  mutate(year = 2011) %>% 
+  select(place, year, sex, age, health, occupational_group, count)
+
+tidy_census_combined_health <- tidy_census_1991_health %>% 
+  bind_rows(tidy_census_2001_health) %>% 
+  bind_rows(tidy_census_2011_health) %>% 
+  arrange(year, place, sex, age)
+
